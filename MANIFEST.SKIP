@@ -1,0 +1,13 @@
+Makefile
+\.old$
+testme\.perl
+\.svn\b
+\bblib\b
+\bpm_to_blib\b
+README\.rpod
+~$
+\.tar\.gz$
+^misc$
+^diacollo$
+^Tie$
+^File$

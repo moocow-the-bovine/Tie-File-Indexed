@@ -1,0 +1,57 @@
+=pod
+
+=head1 NAME
+
+README for Algorithm::BinarySearch::Vec - binary search for vec()-vectors
+
+=cut
+
+##======================================================================
+=pod
+
+=head1 DESCRIPTION
+
+The Algorithm::BinarySearch::Vec perl module provides binary search functions for vec()-vectors,
+including fast XS implementations, which are used by default if available.
+
+=cut
+
+##======================================================================
+=pod
+
+=head1 INSTALLATION
+
+=cut
+
+##--------------------------------------------------------------
+=pod
+
+=head2 Building from Source
+
+To build and install the entire package, issue the following commands to the shell:
+
+ bash$ cd PACKAGE-X.YY       # (or wherever you unpacked this distribution)
+ bash$ perl Makefile.PL      # configure the package
+ bash$ make                  # build the package
+ bash$ make test             # test the build (optional)a
+ bash$ make install          # install the package on your system
+
+More details on the top-level installation process can be found in
+the L<perlmodinstall(1)|perlmodinstall> manpage.
+
+=cut
+
+##======================================================================
+=pod
+
+=head1 SEE ALSO
+
+L<vec() in perlfunc(1)|perlfunc/"vec">,
+PDL(3perl),
+perl(1).
+
+=head1 AUTHOR
+
+Bryan Jurish E<lt>moocow@cpan.orgE<gt>
+
+=cut
