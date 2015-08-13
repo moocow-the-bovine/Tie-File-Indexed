@@ -7,8 +7,9 @@ WriteMakefile
   (
    NAME		=> 'Tie::File::Indexed',
    AUTHOR       => 'Bryan Jurish <moocow@cpan.org>',
-   ABSTRACT	=> 'tied array access to indexed data files',
+   ABSTRACT	=> 'fast tied array access to indexed data files',
    VERSION_FROM	=> 'Indexed.pm',
+   LICENSE      => 'perl_5',
 
    ##-- install these
    #EXE_FILES => [glob("*.perl")],
@@ -17,6 +18,9 @@ WriteMakefile
    #MIN_PERL_VERSION => '5.8.0', ##-- perl 5.6 chokes with "Can't declare another package's variables at t/01_ini.t line 22."
    PREREQ_PM    => {
 		    #'Module' => $version,
+		    'Tie::Array' => undef,
+		    'JSON' => undef,
+		    'Storable' => undef,
 		   },
   );
 

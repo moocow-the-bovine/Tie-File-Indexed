@@ -11,3 +11,5 @@ README\.rpod
 ^diacollo$
 ^Tie$
 ^File$
+\.dat*
+^footer\.rpod$

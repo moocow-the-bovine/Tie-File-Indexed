@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-README for Algorithm::BinarySearch::Vec - binary search for vec()-vectors
+README for Tie::File::Indexed - fast tied array access to indexed data files
 
 =cut
 
@@ -11,8 +11,18 @@ README for Algorithm::BinarySearch::Vec - binary search for vec()-vectors
 
 =head1 DESCRIPTION
 
-The Algorithm::BinarySearch::Vec perl module provides binary search functions for vec()-vectors,
-including fast XS implementations, which are used by default if available.
+The Tie::File::Indexed class provides fast tied array access to raw data-files
+using an auxilliary packed index-file to store and retrieve the offsets and
+lengths of the corresponding raw data strings as well as an additional header-file
+to store administrative data, resulting in a constant and very small memory footprint.
+Random-access storage and retrieval should both be very fast, and even
+pop(), shift() and splice() operations on large arrays should be tolerably efficient,
+since these only need to modify the (comparatively small) index-file.
+
+The Tie::File::Indexed distribution also comes with several pre-defined
+subclasses for transparent encoding/decoding of UTF8-encoded strings,
+and complex data structures encoded via the L<JSON|JSON> or L<Storable|Storable>
+modules.
 
 =cut
 
@@ -46,8 +56,8 @@ the L<perlmodinstall(1)|perlmodinstall> manpage.
 
 =head1 SEE ALSO
 
-L<vec() in perlfunc(1)|perlfunc/"vec">,
-PDL(3perl),
+L<Tie::Array(3pm)|Tie::Array>,
+L<Tie::File(3pm)|Tie::File>,
 perl(1).
 
 =head1 AUTHOR
