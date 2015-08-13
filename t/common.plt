@@ -26,13 +26,18 @@ sub isok {
 }
 
 # slistok($label,\@got,\@expect)
-# slistok($label,\@got,\@expect, $sep='$,')
+# slistok($label,\@got,\@expect)
+BEGIN { *listok = \&slistok; }
 sub slistok {
-  my ($label,$got,$expect,$sep) = @_;
-  $sep = $, if (!defined($sep));
-  isok($label,
-       ( '('.join($sep,@$got).')' ) eq ( '('.join($sep,@$got).')' )
-      );
+  my ($label,$l1,$l2) = @_;
+  my $rc = ($#$l1==$#$l2);
+  foreach (my $i=0; $rc && $i < @$l1; ++$i) {
+    $rc &&= ((!defined($l1->[$i]) && !defined($l2->[$i]))
+	     ||
+	     (defined($l1->[$i]) && defined($l2->[$i]) && $l1->[$i] eq $l2->[$i]));
+  }
+  print "$label:\n";
+  ok(@_);
 }
 
 # ulistok($label,\@got,\@expect)

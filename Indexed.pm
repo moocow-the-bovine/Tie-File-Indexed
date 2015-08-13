@@ -7,7 +7,7 @@
 package Tie::File::Indexed;
 use Tie::Array;
 use JSON qw();
-use Fcntl qw(:DEFAULT :seek);
+use Fcntl qw(:DEFAULT :seek :flock);
 use IO::File;
 use Carp qw(confess);
 use strict;
@@ -21,8 +21,8 @@ our $VERSION = 0.01;
 ##======================================================================
 ## Constructors etc.
 
-## $tfi = CLASS->new(%opts)
-## $tfi = CLASS->new($file,%opts)
+## $tied = CLASS->new(%opts)
+## $tied = CLASS->new($file,%opts)
 ##  + %opts, object structure:
 ##    (
 ##     file   => $file,    ##-- file basename; uses files "${file}", "${file}.idx", "${file}.hdr"
@@ -30,6 +30,7 @@ our $VERSION = 0.01;
 ##     perms  => $perms,   ##-- default: 0666 & ~umask
 ##     pack_o => $pack_o,  ##-- file offset pack template (default='N')
 ##     pack_l => $pack_l,  ##-- string-length pack template (default='N')
+##     bsize  => $bsize,   ##-- block-size in bytes for index batch-operations (default=2**21 = 2MB)
 ##     ##
 ##     ##-- pack lengths (after open())
 ##     len_o  => $len_o,   ##-- packsize($pack_o)
@@ -40,19 +41,19 @@ our $VERSION = 0.01;
 ##     ##-- guts (after open())
 ##     idxfh => $idxfh,    ##-- $file.idx : [$i] => pack("${pack_o}${pack_l}",  $offset_in_datfh_of_item_i, $len_in_datfh_of_item_i)
 ##     datfh => $datfh,    ##-- $file     : raw data (concatenated)
-##     size  => $nrecords, ##-- cached number of records for faster FETCHSIZE()
+##     #size  => $nrecords, ##-- cached number of records for faster FETCHSIZE()  ##-- potentially UNSAFE for concurrent access: DON'T USE
 ##    )
 sub new {
   my $that = shift;
   my $file = (@_ % 2)==0 ? undef : shift;
   my %opts = @_;
-  my $tfi = bless({
+  my $tied = bless({
 		   $that->defaults(),
 		   file => $file,
 		   @_,
 		  }, ref($that)||$that);
-  return $tfi->open() if (defined($tfi->{file}));
-  return $tfi;
+  return $tied->open() if (defined($tied->{file}));
+  return $tied;
 }
 
 ## %defaults = CLASS_OR_OBJECT->defaults()
@@ -64,10 +65,11 @@ sub defaults {
 	  mode   => 'rwa',
 	  pack_o => 'N',
 	  pack_l => 'N',
+	  block  => 2**21,
 	 );
 }
 
-## undef = $tfi->DESTROY()
+## undef = $tied->DESTROY()
 ##  + implicitly calls close()
 sub DESTROY {
   $_[0]->close();
@@ -240,25 +242,134 @@ sub saveJsonFile {
   return 1;
 }
 
+##--------------------------------------------------------------
+## Utilities: debugging
+
+## $idxbuf = $tied->slurpIndex()
+##  + slurps whole raw index-file into a string-buffer (for debugging)
+sub slurpIndex {
+  my $tied = shift;
+  return undef if (!$tied->opened);
+  my $fh = $tied->{idxfh};
+  CORE::seek($fh, 0, SEEK_SET) or return undef;
+  local $/ = undef;
+  return <$fh>;
+}
+
+## $idxtxt = $tied->indexText()
+## @idxtxt = $tied->indexText()
+##  + slurps whole index file and returns it as a text-buffer (for debugging)
+sub indexText {
+  my $tied = shift;
+  my @idx = map {join(' ',unpack($tied->{pack_ix},$_))} unpack("(A[$tied->{len_ix}])*", $tied->slurpIndex//'');
+  return wantarray ? @idx : join("\n",@idx)."\n";
+}
+
+## $datbuf = $tied->slurpData()
+##  + slurps whole raw data-file into a string-buffer (for debugging)
+sub slurpData {
+  my $tied = shift;
+  return undef if (!$tied->opened);
+  my $fh = $tied->{datfh};
+  CORE::seek($fh, 0, SEEK_SET) or return undef;
+  local $/ = undef;
+  return <$fh>;
+}
+
+
 ##======================================================================
 ## Subclass API: Data I/O
 
-## $bool = $tfi->writeData($data)
-##  + write item $data to $tfi->{datfh} at its current position
-##  + after writing, $tfi->{datfh} should be positioned to the first byte following the written item
-##  + $tfi is assumed to be opened in write-mode
+## $bool = $tied->writeData($data)
+##  + write item $data to $tied->{datfh} at its current position
+##  + after writing, $tied->{datfh} should be positioned to the first byte following the written item
+##  + $tied is assumed to be opened in write-mode
+##  + default implementation just writes $data as a byte-string (undef is written as the empty string)
 ##  + can be overridden by subclasses to perform transparent encoding of complex data
 sub writeData {
   return $_[0]{datfh}->print($_[1]//'');
 }
 
-## $data_or_undef = $tfi->readData($offset,$length)
-##  + read item data from $tfi->{datfh} from its current position
+## $data_or_undef = $tied->readData($length)
+##  + read item data record of length $length from $tied->{datfh} at its current position
+##  + default implementation just reads a byte-string of length $length
 sub readData {
-  CORE::seek($_[0]{datfh}, $_[1], SEEK_SET) or return undef;
-  CORE::read($_[0]{datfh}, my $buf, $_[2])==$_[2] or return undef;
+  CORE::read($_[0]{datfh}, my $buf, $_[1])==$_[1] or return undef;
   return $buf;
 }
+
+##======================================================================
+## Subclass API: Index I/O
+
+## ($off,$len) = $tied->readIndex($index)
+## ($off,$len) = $tied->readIndex(undef)
+##  + gets index-record for item at logical index $index from $tied->{idxfh}
+##  + if $index is undef, read from the current position of $tied->{idxfh}
+##  + $index is assumed to exist in the array
+##  + returns the empty list on error
+sub readIndex {
+  !defined($_[1]) or CORE::seek($_[0]{idxfh}, $_[1]*$_[0]{len_ix}, SEEK_SET) or return qw();
+  CORE::read($_[0]{idxfh}, my $buf, $_[0]{len_ix})==$_[0]{len_ix} or return qw();
+  return unpack($_[0]{pack_ix}, $buf);
+}
+
+## $tied_or_undef = $tied->writeIndex($index,$off,$len)
+## $tied_or_undef = $tied->writeIndex(undef,$off,$len)
+##  + writes index-record for item at logical index $index to $tied->{idxfh}
+##  + if $index is undef, write at the current position of $tied->{idxfh}
+##  + returns undef list on error
+sub writeIndex {
+  !defined($_[1]) or CORE::seek($_[0]{idxfh}, $_[1]*$_[0]{len_ix}, SEEK_SET) or return undef;
+  $_[0]{idxfh}->print(pack($_[0]{pack_ix}, $_[2], $_[3])) or return undef;
+  return $_[0];
+}
+
+## $tied_or_undef = $tied->shiftIndex($start,$n,$shift)
+##  + moves $n index records starting from $start by $shift positions (may be negative)
+##  + operates directly on $tied->{idxfh}
+##  + doesn't change old values unless they are overwritten
+sub shiftIndex {
+  my ($tied,$start,$n,$shift) = @_;
+
+  ##-- common variables
+  my $idxfh  = $tied->{idxfh};
+  my $len_ix = $tied->{len_ix};
+  my $bsize  = $tied->{bsize} // 2**21;
+  my $bstart = $len_ix * $start;
+  my $bn     = $len_ix * $n;
+  my $bshift = $len_ix * $shift;
+  my ($buf,$boff,$blen);
+
+  ##-- dispatch by shift direction
+  if ($shift > 0) {
+    ##-- shift right (copy right-to-left)
+    CORE::seek($tied->{idxfh}, $bstart+$bn, SEEK_SET) or return undef;
+    while ($bn > 0) {
+      $blen = $bn > $bsize ? $bsize : $bn;
+      CORE::seek($idxfh, -$blen, SEEK_CUR) or return undef;
+      CORE::read($idxfh, $buf, $blen)==$blen or return undef;
+      CORE::seek($idxfh, $bshift-$blen, SEEK_CUR) or return undef;
+      $idxfh->print($buf) or return undef;
+      CORE::seek($idxfh, -$bshift, SEEK_CUR) or return undef;
+      $bn -= $blen;
+    }
+  } else {
+    ##-- shift left (copy left-to-right)
+    CORE::seek($tied->{idxfh}, $bstart, SEEK_SET) or return undef;
+    while ($bn > 0) {
+      $blen = $bn > $bsize ? $bsize : $bn;
+      CORE::read($idxfh, $buf, $blen)==$blen or return undef;
+      CORE::seek($idxfh, $bshift-$blen, SEEK_CUR) or return undef;
+      $idxfh->print($buf) or return undef;
+      CORE::seek($idxfh, -$bshift, SEEK_CUR) or return undef;
+      $bn -= $blen;
+    }
+  }
+
+  return $tied;
+}
+
+
 
 ##======================================================================
 ## Object API
@@ -266,139 +377,155 @@ sub readData {
 ##--------------------------------------------------------------
 ## Object API: header
 
-## @keys = $tfi->headerKeys()
+## @keys = $tied->headerKeys()
 ##  + keys to save as header
 sub headerKeys {
   return grep {!ref($_[0]{$_}) && $_ !~ m{^(?:file|mode|perms)$}} keys %{$_[0]};
 }
 
-## \%header = $tfi->headerData()
+## \%header = $tied->headerData()
 ##  + data to save as header
 sub headerData {
-  my $tfi = shift;
-  return {(map {($_=>$tfi->{$_})} $tfi->headerKeys), class=>ref($tfi)};
+  my $tied = shift;
+  return {(map {($_=>$tied->{$_})} $tied->headerKeys), class=>ref($tied)};
 }
 
-## $tfi_or_undef = $tfi->loadHeader()
-## $tfi_or_undef = $tfi->loadHeader($headerFile,%opts)
-##  + loads header from "$tfi->{file}.hdr"
+## $tied_or_undef = $tied->loadHeader()
+## $tied_or_undef = $tied->loadHeader($headerFile,%opts)
+##  + loads header from "$tied->{file}.hdr"
 ##  + %opts are passed to loadJsonFile()
 sub loadHeader {
-  my ($tfi,$hfile,%opts) = @_;
-  $hfile //= $tfi->{file}.".hdr" if (defined($tfi->{file}));
-  confess(ref($tfi)."::loadHeader(): no header-file specified and no 'file' attribute defined") if (!defined($hfile));
-  my $hdata = $tfi->loadJsonFile($hfile,%opts)
-    or confess(ref($tfi)."::loadHeader(): failed to load header data from '$hfile'");
-  @$tfi{keys %$hdata} = values %$hdata;
-  return $tfi;
+  my ($tied,$hfile,%opts) = @_;
+  $hfile //= $tied->{file}.".hdr" if (defined($tied->{file}));
+  confess(ref($tied)."::loadHeader(): no header-file specified and no 'file' attribute defined") if (!defined($hfile));
+  my $hdata = $tied->loadJsonFile($hfile,%opts)
+    or confess(ref($tied)."::loadHeader(): failed to load header data from '$hfile'");
+  @$tied{keys %$hdata} = values %$hdata;
+  return $tied;
 }
 
-## $tfi_or_undef = $tfi->saveHeader()
-## $tfi_or_undef = $tfi->saveHeader($headerFile)
+## $tied_or_undef = $tied->saveHeader()
+## $tied_or_undef = $tied->saveHeader($headerFile)
 ##  + saves header data to $headerFile
 ##  + %opts are passed to saveJsonFile()
 sub saveHeader {
-  my ($tfi,$hfile,%opts) = @_;
-  $hfile //= $tfi->{file}.".hdr" if (defined($tfi->{file}));
-  confess(ref($tfi)."::saveHeader(): no header-file specified and no 'file' attribute defined") if (!defined($hfile));
-  return $tfi->saveJsonFile($tfi->headerData(), $hfile, %opts);
+  my ($tied,$hfile,%opts) = @_;
+  $hfile //= $tied->{file}.".hdr" if (defined($tied->{file}));
+  confess(ref($tied)."::saveHeader(): no header-file specified and no 'file' attribute defined") if (!defined($hfile));
+  return $tied->saveJsonFile($tied->headerData(), $hfile, %opts);
 }
 
 ##--------------------------------------------------------------
 ## Object API: open/close
 
-## $tfi_or_undef = $tfi->open($file,$mode)
-## $tfi_or_undef = $tfi->open($file)
-## $tfi_or_undef = $tfi->open()
+## $tied_or_undef = $tied->open($file,$mode)
+## $tied_or_undef = $tied->open($file)
+## $tied_or_undef = $tied->open()
 ##  + opens file(s)
 sub open {
-  my ($tfi,$file,$mode) = @_;
-  $file //= $tfi->{file};
-  $mode //= $tfi->{mode};
-  $tfi->close() if ($tfi->opened);
-  $tfi->{file} = $file;
-  $tfi->{mode} = $mode = fcflags($mode);
+  my ($tied,$file,$mode) = @_;
+  $file //= $tied->{file};
+  $mode //= $tied->{mode};
+  $tied->close() if ($tied->opened);
+  $tied->{file} = $file;
+  $tied->{mode} = $mode = fcflags($mode);
 
   if (fcread($mode) && !fctrunc($mode)) {
     (!-e "$file.hdr" && fccreat($mode))
-      or $tfi->loadHeader()
-      or confess(ref($tfi)."::failed to load header from '$tfi->{file}.hdr': $!");
+      or $tied->loadHeader()
+      or confess(ref($tied)."::failed to load header from '$tied->{file}.hdr': $!");
   }
 
-  $tfi->{idxfh} = fcopen("$file.idx", $mode, $tfi->{perms})
-    or confess(ref($tfi)."::open failed for index-file $file.idx: $!");
-  $tfi->{datfh} = fcopen("$file", $mode, $tfi->{perms})
-    or confess(ref($tfi)."::open failed for data-file $file: $!");
-  binmode($_) foreach (@$tfi{qw(idxfh datfh)});
+  $tied->{idxfh} = fcopen("$file.idx", $mode, $tied->{perms})
+    or confess(ref($tied)."::open failed for index-file $file.idx: $!");
+  $tied->{datfh} = fcopen("$file", $mode, $tied->{perms})
+    or confess(ref($tied)."::open failed for data-file $file: $!");
+  binmode($_) foreach (@$tied{qw(idxfh datfh)});
 
   ##-- pack lengths
   #use bytes; ##-- deprecated in perl v5.18.2
-  $tfi->{len_o}   = packsize($tfi->{pack_o});
-  $tfi->{len_l}   = packsize($tfi->{pack_l});
-  $tfi->{len_ix}  = $tfi->{len_o} + $tfi->{len_l};
-  $tfi->{pack_ix} = $tfi->{pack_o}.$tfi->{pack_l};
+  $tied->{len_o}   = packsize($tied->{pack_o});
+  $tied->{len_l}   = packsize($tied->{pack_l});
+  $tied->{len_ix}  = $tied->{len_o} + $tied->{len_l};
+  $tied->{pack_ix} = $tied->{pack_o}.$tied->{pack_l};
 
-  return $tfi;
+  return $tied;
 }
 
-## $tfi_or_undef = $tfi->close()
+## $tied_or_undef = $tied->close()
 ##   + close any opened file, writes header if opened in write mode
 sub close {
-  my $tfi = shift;
-  return $tfi if (!$tfi->opened);
-  if ($tfi->opened && fcwrite($tfi->{mode})) {
-    $tfi->saveHeader() or
-      confess(ref($tfi)."::close(): failed to save header file");
+  my $tied = shift;
+  return $tied if (!$tied->opened);
+  if ($tied->opened && fcwrite($tied->{mode})) {
+    $tied->saveHeader() or
+      confess(ref($tied)."::close(): failed to save header file");
   }
-  delete @$tfi{qw(idxfh datfh)}; ##-- should auto-close if not shared
-  undef $tfi->{file};
-  return $tfi;
+  delete @$tied{qw(idxfh datfh)}; ##-- should auto-close if not shared
+  undef $tied->{file};
+  return $tied;
 }
 
-## $bool = $tfi->opened()
+## $bool = $tied->opened()
 ##  + returns true iff object is opened
 sub opened {
-  my $tfi = shift;
-  return (ref($tfi)
-	  && defined($tfi->{idxfh})
-	  && defined($tfi->{datfh})
+  my $tied = shift;
+  return (ref($tied)
+	  && defined($tied->{idxfh})
+	  && defined($tied->{datfh})
 	 );
 }
 
-## $tfi_or_undef = $tfi->flush()
+## $tied_or_undef = $tied->flush()
+## $tied_or_undef = $tied->flush($flushHeader)
 ##  + attempts to flush underlying filehandles using IO::Handle::flush
 ##  + also writes header file
 sub flush {
   return ($_[0]->opened
-	  && $_[0]->saveHeaderFile()
 	  && UNIVERSAL::can($_[0]->{idxfh},'flush') && $_[0]->{idxfh}->flush
-	  && UNIVERSAL::can($_[0]->{datfh},'flush') && $_[0]->{datfh}->flush)
+	  && UNIVERSAL::can($_[0]->{datfh},'flush') && $_[0]->{datfh}->flush
+	  && (!$_[1] || $_[0]->saveHeaderFile())
+	 )
     ? $_[0]
     : undef;
+}
+
+## $tied_or_undef = $tied->unlink()
+## $tied_or_undef = $tied->unlink($file)
+##  + attempts to unlink underlying files
+##  + implicitly calls close()
+sub unlink {
+  my ($tied,$file) = @_;
+  $file //= $tied->{file};
+  $tied->close();
+  foreach ('','.idx','.hdr') {
+    CORE::unlink("${file}$_") or return undef;
+  }
+  return $tied;
 }
 
 
 ##--------------------------------------------------------------
 ## Object API: consolidate
 
-## $tfi_or_undef = $tfi->consolidate()
-## $tfi_or_undef = $tfi->consolidate($tmpfile)
-##  + consolidates file data: ensures data in $tfi->{datfh} are in index-order and contain no gaps or unused blocks
+## $tied_or_undef = $tied->consolidate()
+## $tied_or_undef = $tied->consolidate($tmpfile)
+##  + consolidates file data: ensures data in $tied->{datfh} are in index-order and contain no gaps or unused blocks
 ##  + object must be opened in write-mode
-##  + uses $tmpfile as a temporary file for consolidation (default="$tfi->{file}.tmp")
+##  + uses $tmpfile as a temporary file for consolidation (default="$tied->{file}.tmp")
 sub consolidate {
-  my ($tfi,$tmpfile) = @_;
+  my ($tied,$tmpfile) = @_;
 
   ##-- open tempfile
-  $tmpfile //= "$tfi->{file}.tmp";
-  my $tmpfh = fcopen($tmpfile, $tfi->{mode}, $tfi->{perms})
-    or confess(ref($tfi)."::open failed for temporary data-file $tmpfile: $!");
+  $tmpfile //= "$tied->{file}.tmp";
+  my $tmpfh = fcopen($tmpfile, $tied->{mode}, $tied->{perms})
+    or confess(ref($tied)."::open failed for temporary data-file $tmpfile: $!");
   binmode($tmpfh);
 
   ##-- copy data
-  my ($idxfh,$datfh,$len_ix,$pack_ix) = @$tfi{qw(idxfh datfh len_ix pack_ix)};
+  my ($idxfh,$datfh,$len_ix,$pack_ix) = @$tied{qw(idxfh datfh len_ix pack_ix)};
   my ($buf,$off,$len);
-  my $size = $tfi->size;
+  my $size = $tied->size;
   CORE::seek($idxfh, 0, SEEK_SET) or return undef;
   CORE::seek($tmpfh, 0, SEEK_SET) or return undef;
   for (my $i=0; $i < $size; ++$i) {
@@ -418,15 +545,37 @@ sub consolidate {
 
   ##-- swap data filehandle
   undef  $datfh;
-  delete $tfi->{datfh};
-  CORE::unlink($tfi->{file})
-      or confess(ref($tfi)."::consolidate(): failed to unlink old data-file '$tfi->{file}': $!");
-  CORE::rename($tmpfile, $tfi->{file})
-      or confess(ref($tfi)."::consolidate(): failed to rename temp-file '$tmpfile' to '$tfi->{file}': $!");
-  $tfi->{datfh} = $tmpfh;
+  delete $tied->{datfh};
+  CORE::unlink($tied->{file})
+      or confess(ref($tied)."::consolidate(): failed to unlink old data-file '$tied->{file}': $!");
+  CORE::rename($tmpfile, $tied->{file})
+      or confess(ref($tied)."::consolidate(): failed to rename temp-file '$tmpfile' to '$tied->{file}': $!");
+  $tied->{datfh} = $tmpfh;
 
-  return $tfi;
+  return $tied;
 }
+
+##--------------------------------------------------------------
+## Object API: advisory locking
+
+## $bool = $tied->flock()
+## $bool = $tied->flock($lock)
+##  + get an advisory lock of type $lock (default=LOCK_EX) on $tied->{datfh}, using perl's flock() function
+##  + implicitly calls flush() prior to locking
+sub flock {
+  my ($tied,$op) = @_;
+  return undef if (!$tied->opened);
+  $tied->flush();
+  return CORE::flock($tied->{datfh}, ($op // LOCK_EX));
+}
+
+## $bool = $tied->funlock()
+## $bool = $tied->funlock($lock)
+##  + unlock $tied->{datfh} using perl's flock() function; $lock defaults to LOCK_UN
+sub funlock {
+  return $_[0]->flock( LOCK_UN | ($_[1]//0) );
+}
+
 
 ##======================================================================
 ## API: Tied Array
@@ -440,62 +589,59 @@ BEGIN { *TIEARRAY = \&new; }
 
 ## $count = $tied->FETCHSIZE()
 ##  + like scalar(@array)
-##  + may cache $tied->{size}
+##  + re-positions $tied->{idxfh} to eof
 BEGIN { *size = \&FETCHSIZE; }
 sub FETCHSIZE {
   return undef if (!$_[0]{idxfh});
-  return $_[0]{size} //= ((-s $_[0]{idxfh}) / $_[0]{len_ix});
+  #return ((-s $_[0]{idxfh}) / $_[0]{len_ix}); ##-- doesn't handle recent writes correctly (probably due to perl i/o buffering)
+  ##
+  CORE::seek($_[0]{idxfh},0,SEEK_END) or return undef;
+  return CORE::tell($_[0]{idxfh}) / $_[0]{len_ix};
 }
 
 ## $val = $tied->FETCH($index)
 ## $val = $tied->FETCH($index)
 sub FETCH {
-  my ($tfi,$i) = @_;
-  return undef if ($i >= $tfi->size);
+  ##-- sanity check
+  return undef if ($_[1] >= $_[0]->size);
 
-  ##-- get (offset,length)
-  my ($buf);
-  CORE::seek($tfi->{idxfh}, $i*$tfi->{len_ix}, SEEK_SET) or return undef;
-  CORE::read($tfi->{idxfh}, $buf, $tfi->{len_ix})==$tfi->{len_ix} or return undef;
-  my ($off,$len) = unpack($tfi->{pack_ix}, $buf);
+  ##-- get index record from $idxfh
+  my ($off,$len) = $_[0]->readIndex($_[1]) or return undef;
 
-  ##-- get data
-  return $tfi->readData($off,$len);
+  ##-- get data record from $datfh
+  CORE::seek($_[0]{datfh}, $off, SEEK_SET) or return undef;
+  return $_[0]->readData($len);
 }
 
 ## $val = $tied->STORE($index,$val)
 ##  + no consistency checking or optimization; just appends a new record to the end of $datfh and updates $idxfh
 sub STORE {
-  my $tfi = shift;
-
   ##-- append encoded record to $datfh
-  CORE::seek($tfi->{datfh}, 0, SEEK_END) or return undef;
-  my $off0 = CORE::tell($tfi->{datfh});
-  $tfi->writeData($_[1]) or return undef;
-  my $off1 = CORE::tell($tfi->{datfh});
+  CORE::seek($_[0]{datfh}, 0, SEEK_END) or return undef;
+  my $off0 = CORE::tell($_[0]{datfh});
+  $_[0]->writeData($_[2]) or return undef;
+  my $off1 = CORE::tell($_[0]{datfh});
 
   ##-- update index record in $idxfh
-  CORE::seek($tfi->{idxfh}, $_[0]*$tfi->{len_ix}, SEEK_SET) or return undef;
-  $tfi->{idxfh}->print(pack($tfi->{pack_ix}, $off0, ($off1-$off0))) or return undef;
-
-  ##-- mybe update {size}
-  $tfi->{size} = $_[0]+1 if ($_[0] >= ($tfi->{size}//0));
+  $_[0]->writeIndex($_[1], $off0, ($off1-$off0)) or return undef;
 
   ##-- return
-  return $_[1];
+  return $_[2];
 }
 
 ## $count = $tied->STORESIZE($count)
+## $count = $tied->STORESIZE($count) ##-- local extension
+##  + modifies only $idxfh
 sub STORESIZE {
-  if ($_[1] < $_[0]->size) {
+  my $oldsize = $_[0]->size;
+  if ($_[1] < $oldsize) {
     ##-- shrink
     CORE::truncate($_[0]{idxfh}, $_[1]*$_[0]{len_ix}) or return undef;
-  } elsif ($_[1] > $_[0]->size) {
+  } elsif ($_[1] > $oldsize) {
     ##-- grow (idxfh only)
     CORE::seek($_[0]{idxfh}, $_[1]*$_[0]{len_ix}-1, SEEK_SET) or return undef;
     $_[0]{idxfh}->print("\0");
   }
-  $_[0]{size} = $_[1];
   return $_[1];
 }
 
@@ -517,16 +663,102 @@ sub DELETE {
 sub CLEAR {
   CORE::truncate($_[0]{idxfh}, 0) or return undef;
   CORE::truncate($_[0]{datfh}, 0) or return undef;
-  $_[0]{size} = 0;
   return $_[0];
 }
 
-## @vals = $tied->PUSH(@vals)
-## $val = $tied->POP()
-## $val = $tied->SHIFT()
-## @vals = $tied->UNSHIFT(@vals)
-## @newvals = $tied->SPLICE($offset, $length, @newvals)
-## ? = $tied->EXTEND($newcount)
+## $newsize = $tied->PUSH(@vals)
+sub PUSH {
+  my $tied = shift;
 
+  CORE::seek($tied->{datfh}, 0, SEEK_END) or return undef;
+  CORE::seek($tied->{idxfh}, 0, SEEK_END) or return undef;
+  my ($off0,$off1);
+  foreach (@_) {
+    my $off0 = CORE::tell($tied->{datfh});
+    $tied->writeData($_) or return undef;
+    my $off1 = CORE::tell($tied->{datfh});
+
+    ##-- update index record in $idxfh
+    $tied->writeIndex(undef, $off0, ($off1-$off0)) or return undef;
+  }
+
+  return $tied->size if (defined(wantarray));
+}
+
+## $val = $tied->POP()
+##  + truncates data-file if we're popping the final data-record
+sub POP {
+  return undef if (!(my $size=$_[0]->size));
+
+  ##-- get final index record (& truncate it)
+  my ($off,$len) = $_[0]->readIndex($size-1) or return undef;
+  CORE::truncate($_[0]{idxfh}, ($size-1)*$_[0]{len_ix}) or return undef;
+
+  ##-- get corresponding data-record
+  CORE::seek($_[0]{datfh}, $off, SEEK_SET) or return undef;
+  my $val = $_[0]->readData($len);
+
+  ##-- maybe trim data-file
+  CORE::truncate($_[0]{datfh}, $off) if (($off+$len) == (-s $_[0]{datfh}));
+  return $val;
+}
+
+## $val = $tied->SHIFT()
+##  + truncates data-file if we're shifting the final data-record
+sub SHIFT {
+  ##-- get first index record
+  my ($off,$len) = $_[0]->readIndex(0) or return undef;
+
+  ##-- defer to SPLICE
+  my $val = $_[0]->SPLICE(0,1);
+
+  ##-- maybe trim data-file
+  CORE::truncate($_[0]{datfh}, $off) if (($off+$len) == (-s $_[0]{datfh}));
+  return $val;
+}
+
+## @removed      = $tied->SPLICE($offset, $length, @newvals)
+## $last_removed = $tied->SPLICE($offset, $length, @newvals)
+sub SPLICE {
+  my $tied = shift;
+  my $size = $tied->size();
+  my $off  = (@_) ? shift : 0;
+  $off    += $size if ($off < 0);
+  my $len  = (@_) ? shift : ($size-$off);
+  $len    += $size-$off if ($len < 0);
+
+  ##-- get result-list
+  my ($i,@result);
+  if (wantarray) {
+    for ($i=$off; $i < $len; ++$i) {
+      push(@result, $tied->FETCH($i));
+    }
+  } elsif ($len > 0) {
+    @result = ($tied->FETCH($off+$len-1));
+  }
+
+  ##-- shift post-splice index records (expensive, but generally not as default Tie::Array iterated FETCH()+STORE())
+  my $shift = scalar(@_) - $len;
+  $tied->shiftIndex($off+$len, $size-($off+$len), $shift) if ($shift != 0);
+
+  ##-- store new values
+  for ($i=0; $i < @_; ++$i) {
+    $tied->STORE($off+$i, $_[$i]);
+  }
+
+  ##-- maybe shrink array
+  CORE::truncate($tied->{idxfh}, ($size+$shift)*$tied->{len_ix}) or return undef if ($shift < 0);
+
+  ##-- return
+  return wantarray ? @result : $result[0];
+}
+
+## @vals = $tied->UNSHIFT(@vals)
+##  + just defers to SPLICE
+sub UNSHIFT {
+  return scalar shift->SPLICE(0,0,@_);
+}
+
+## ? = $tied->EXTEND($newcount)
 
 1; ##-- be happpy

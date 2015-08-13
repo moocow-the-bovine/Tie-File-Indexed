@@ -76,10 +76,10 @@ sub writeData {
   return $_[0]{datfh}->print( $_[0]{json}->encode($_[1]) );
 }
 
-## $data_or_undef = $tfi->readData($offset,$length)
+## $data_or_undef = $tfi->readData($length)
 ##  + override decodes stored data using the JSON module
 sub readData {
-  return undef if ($_[2]==0 || !defined(my $buf=$_[0]->SUPER::readData(@_[1,2])));
+  return undef if ($_[1]==0 || !defined(my $buf=$_[0]->SUPER::readData($_[1])));
   return $_[0]{json}->decode($buf);
 }
 

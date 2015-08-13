@@ -68,9 +68,9 @@ Tie::File::Indexed - tied array access to indexed data files
 
 =item new
 
- $tfi = CLASS->new(%opts);
- $tfi = CLASS->new($file,%opts);
- $tfi = tie(@array, CLASS, $file, %opts);
+ $tied = CLASS->new(%opts);
+ $tied = CLASS->new($file,%opts);
+ $tied = tie(@array, CLASS, $file, %opts);
 
 Creates and returns a new Tie::File::Indexed object, in the third form tying it to
 the Perl array @array.  Currently accepted %options:
@@ -80,6 +80,7 @@ the Perl array @array.  Currently accepted %options:
  perms  => $perms,   ##-- default: 0666 & ~umask
  pack_o => $pack_o,  ##-- file offset pack template (default='N')
  pack_l => $pack_l,  ##-- string-length pack template (default='N')
+ bsize  => $bsize,   ##-- buffer size in bytes for index batch-operations (default=2**21 = 2MB)
 
 When opening an existing file, administrative header-data is read from the header-file F<$file.hdr>,
 which is written on close() if opened in write-mode.
@@ -95,7 +96,7 @@ Default attributes for constructor; can be overridden by subclasses.
 
 =item DESTROY
 
- undef = $tfi->DESTROY();
+ undef = $tied->DESTROY();
 
 Destructor implicitly calls close().
 
@@ -113,23 +114,69 @@ Destructor implicitly calls close().
 
 =item writeData
 
- $bool = $tfi->writeData($data);
+ $bool = $tied->writeData($data);
 
-Write item $data to C<$tfi-E<gt>{datfh}> at its current position.
-After writing, C<$tfi-E<gt>{datfh}> should be positioned to the first byte following the written item.
+Write item $data to C<$tied-E<gt>{datfh}> at its current position.
+After writing, C<$tied-E<gt>{datfh}> should be positioned to the first byte following the written item.
 The object is assumed to be opened in write-mode.
+The default implementation just writes C<$data> as a byte-string (C<undef> is written as the empty string).
 Can be overridden by subclasses to perform transparent encoding of complex data.
 
 =item readData
 
- $data_or_undef = $tfi->readData($offset,$length);
+ $data_or_undef = $tied->readData($length);
 
-Read item data from C<$tfi-E<gt>{datfh}> from its current position.
-Can be overridden by subclasses to perform transparent encoding of complex data.
+Read item data of length C<$length> from C<$tied-E<gt>{datfh}> at its current position.
+Can be overridden by subclasses to perform transparent decoding of complex data.
 
 =back
 
 =cut
+
+##----------------------------------------------------------------
+## DESCRIPTION: Tie::File::Indexed: Subclass API: Index I/O
+=pod
+
+=head2 Subclass API: Index I/O
+
+=over 4
+
+=item readIndex
+
+ ($off,$len) = $tied->readIndex($index);
+ ($off,$len) = $tied->readIndex(undef);
+
+Reads an index-record from C<$tied-E<gt>{idxfh}>.
+If C<$index> is C<undef>, read from the current position of C<$tied-E<gt>{idxfh}>,
+otherwise reads the index record for item at logical index C<$index>,
+which is assumed to exist in the array.
+Returns offset and length in C<$tied-E<gt>{datfh}> of the item data,
+or the empty list on error.
+
+=item writeIndex
+
+ $tied_or_undef = $tied->writeIndex($index,$off,$len);
+ $tied_or_undef = $tied->writeIndex(undef, $off,$len);
+
+Writes index-record for a logical item to C<tied-E<gt>{idxfh}>.
+If C<$index> is C<undef>, writes at the current position of C<$tied-E<gt>{idxfh}>,
+otherwise writes a record for the logical iundex C<$index>, creating one if it
+doesn't already exist.
+Returns the tied object on success, undef on error.
+
+=item shiftIndex
+
+ $tied_or_undef = $tied->shiftIndex($start,$n,$shift);
+
+Moves C<$n> index records starting from C<$start> by C<$shift> positions (may be negative).
+Operates directly on C<$tied-E<gt>{idxfh}>.
+Doesn't change unaffected values.
+Used by SPLICE() method.
+
+=back
+
+=cut
+
 
 ##----------------------------------------------------------------
 ## DESCRIPTION: Tie::File::Indexed: Object API: header
@@ -141,29 +188,29 @@ Can be overridden by subclasses to perform transparent encoding of complex data.
 
 =item headerKeys
 
- @keys = $tfi->headerKeys();
+ @keys = $tied->headerKeys();
 
 Keys to save as header.
 
 =item headerData
 
- \%header = $tfi->headerData();
+ \%header = $tied->headerData();
 
 Data to save as header.
 
 =item loadHeader
 
- $tfi_or_undef = $tfi->loadHeader();
- $tfi_or_undef = $tfi->loadHeader($headerFile,%opts);
+ $tied_or_undef = $tied->loadHeader();
+ $tied_or_undef = $tied->loadHeader($headerFile,%opts);
 
-Loads header from C<$headerFile>, by default C<"$tfi->{file}.hdr">.
+Loads header from C<$headerFile>, by default C<"$tied->{file}.hdr">.
 
 =item saveHeader
 
- $tfi_or_undef = $tfi->saveHeader();
- $tfi_or_undef = $tfi->saveHeader($headerFile);
+ $tied_or_undef = $tied->saveHeader();
+ $tied_or_undef = $tied->saveHeader($headerFile);
 
-Saves header data to C<$headerFile>, by default C<"$tfi->{file}.hdr">.
+Saves header data to C<$headerFile>, by default C<"$tied->{file}.hdr">.
 
 =back
 
@@ -179,30 +226,39 @@ Saves header data to C<$headerFile>, by default C<"$tfi->{file}.hdr">.
 
 =item open
 
- $tfi_or_undef = $tfi->open($file,$mode);
- $tfi_or_undef = $tfi->open($file);
- $tfi_or_undef = $tfi->open();
+ $tied_or_undef = $tied->open($file,$mode);
+ $tied_or_undef = $tied->open($file);
+ $tied_or_undef = $tied->open();
 
 Opens underlying file(s) for use.
 
 =item close
 
- $tfi_or_undef = $tfi->close();
+ $tied_or_undef = $tied->close();
 
 Close any opened files, writes header if opened in write mode.
 
 =item opened
 
- $bool = $tfi->opened();
+ $bool = $tied->opened();
 
 Returns true iff object is opened.
 
 =item flush
 
- $tfi_or_undef = $tfi->flush();
+ $tied_or_undef = $tied->flush();
+ $tied_or_undef = $tied->flush($flushHeader);
 
 Attempts to flush underlying filehandles using their C<flush()> method, if available.
-Also writes header file.
+If C<$flushHeader> is specified and true, also writes header file.
+
+=item unlink
+
+ $tied_or_undef = $tied->unlink();
+ $tied_or_undef = CLASS_OR_OBJECT->unlink($file);
+
+Attempts to unlink any underlying file(s) for the data-file $file.
+Implicitly calls close() before unlinking.
 
 =back
 
@@ -218,12 +274,12 @@ Also writes header file.
 
 =item consolidate
 
- $tfi_or_undef = $tfi->consolidate();
- $tfi_or_undef = $tfi->consolidate($tmpfile);
+ $tied_or_undef = $tied->consolidate();
+ $tied_or_undef = $tied->consolidate($tmpfile);
 
-Consolidates file data: ensures that data in C<$tfi-E<gt>{datfh}> are in index-order and contain no gaps or unused blocks.
+Consolidates file data: ensures that data in C<$tied-E<gt>{datfh}> are in index-order and contain no gaps or unused blocks.
 The object must be opened in write-mode.
-Uses C<$tmpfile> as a temporary file for consolidation (default=C<"$tfi-E<gt>{file}.tmp">).
+Uses C<$tmpfile> as a temporary file for consolidation (default=C<"$tied-E<gt>{file}.tmp">).
 
 If you never overwrite data in your tied arrays, you probably won't need this method.
 It can be useful to reduce the size of the associated data-file and/or optimize index-ordered access operations, since
@@ -254,22 +310,74 @@ This method is never implicitly called, so if you need it, you'll have to call i
 =cut
 
 
+##----------------------------------------------------------------
+## DESCRIPTION: Tie::File::Indexed: Object API: advisory locking
+=pod
+
+=head2 Object API: advisory locking
+
+=over 4
+
+=item flock
+
+ $bool = $tied->flock();
+ $bool = $tied->flock($lock);
+
+Get an advisory lock of type C<$lock> (default=C<Fcntl::LOCK_EX>) on C<$tied-E<gt>{datfh}>, using perl's flock() function.
+Implicitly calls flush() prior to locking.
+
+=item funlock
+
+ $bool = $tied->funlock();
+ $bool = $tied->funlock($lock);
+
+Unlock C<$tied-E<gt>{datfh}> using perl's flock() function; C<$lock> defaults to C<Fcntl::LOCK_UN>.
+
+=back
+
+=cut
+
+
 ##========================================================================
 ## END POD DOCUMENTATION, auto-generated by podextract.perl
 =pod
 
 =cut
 
-##======================================================================
-## TODO
-##======================================================================
+##========================================================================
+## SUBCLASSES
 =pod
 
-=head1 TODO
+=head1 SUBCLASSES
 
-Shortcuts for advisory locking might be nice.
+The default data storage methods in Tie::File::Indexed are suitable for
+simple perl scalars (integers, floating-point numbers, or simple byte-strings).
+The Tie::File::Indexed distribution comes with several pre-defined subclasses
+for storing other types of data as well.  Currently, the following pre-defined
+subclasses are supported:
+
+=over 4
+
+=item L<Tie::File::Indexed::Utf8|Tie::File::Indexed::Utf8>
+
+Stores data records as UTF-8 encoded strings.
+
+=item L<Tie::File::Indexed::JSON|Tie::File::Indexed::JSON>
+
+Stores data records as JSON strings using the L<JSON|JSON> module.
+
+=item L<Tie::File::Indexed::Storable|Tie::File::Indexed::Storable>
+
+Stores data records in native binary format using the L<Storable|Storable> module.
+
+=item L<Tie::File::Indexed::StorableN|Tie::File::Indexed::StorableN>
+
+Stores data records in portable "network" binary format using the L<Storable|Storable> module.
 
 =back
+
+=cut
+
 
 ##======================================================================
 ## Footer

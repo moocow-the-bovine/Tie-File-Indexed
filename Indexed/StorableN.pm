@@ -22,7 +22,7 @@ our @ISA = qw(Tie::File::Indexed::Storable);
 ##  + override transparently encodes $data using Storable::nstore_fd()
 sub writeData {
   return 1 if (!defined($_[1])); ##-- don't waste space on undef
-  return Storable::nstore_fd($_[1]);
+  return Storable::nstore_fd($_[1],$_[0]{datfh});
 }
 
 

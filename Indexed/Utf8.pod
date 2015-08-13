@@ -23,11 +23,12 @@ Tie::File::Indexed::Utf8 - tied array access to indexed data files: utf8-encoded
  use Tie::File::Indexed::Utf8;
  tie(my @data, 'Tie::File::Indexed::Utf8', $filename, %options) or die ...
  
- ##-- add some data
- $data[0] = "\x{c4}";     # store a utf8 string (Latin-1 Supplement / LATIN SMALL LETTER O WITH DIAERESIS)
- $data[1] = "\x{262e}";   # ... or a real utf8-string (Miscellaneous Symbols / PEACE SYMBOL)
- print $data[1];          # retrieve & print a stored value
-
+ ##-- store some utf8 strings
+ $data[0] = "\x{c4}de";
+ $data[1] = "\x{0372}\x{2107}\x{01a7}\x{a68c}";
+ 
+ ##-- strings are retrieved with the UTF-8 flag set
+ print $data[1];
 
 =cut
 

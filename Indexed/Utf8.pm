@@ -29,11 +29,11 @@ sub writeData {
   return $_[0]{datfh}->print($val//'');
 }
 
-## $data_or_undef = $tfi->readData($offset,$length)
+## $data_or_undef = $tfi->readData($length)
 ##  + read item data from $tfi->{datfh} from its current position
 ##  + returned scalars should always have their utf8 flag set
 sub readData {
-  defined(my $buf = $_[0]->SUPER::readData(@_[1,2])) or return undef;
+  defined(my $buf = $_[0]->SUPER::readData($_[1])) or return undef;
   utf8::decode($buf);
   return $buf;
 }
