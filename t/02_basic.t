@@ -11,7 +11,7 @@ do "$TEST_DIR/common.plt"
   or die("could not load $TEST_DIR/common.plt");
 
 ##-- plan tests
-plan(test => 34);
+plan(test => 35);
 
 ##-- common variables
 my $file = "$TEST_DIR/test.dat";
@@ -84,8 +84,9 @@ listok("splice: remove: content", \@a,\@w);
 listok("slice: add+remove", [splice(@a,1,1,qw(w v))], [splice(@w,1,1,qw(w v))]);
 listok("slice: add+remove: content", \@a,\@w);
 
-##-- 32+3: unlink
-isok("unlink", tied(@a)->unlink);
+##-- 32+4: unlink
+isok("unlink",  tied(@a)->unlink);
+isok("unlink2: undef", !defined(tied(@a)->unlink));
 isok("unlink: files", !grep {-e "${file}$_"} ('','.idx','.hdr'));
 isok("unlink: untie", untie(@a));
 

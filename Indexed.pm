@@ -16,7 +16,7 @@ use strict;
 ## Globals
 
 our @ISA     = qw(Tie::Array);
-our $VERSION = 0.01;
+our $VERSION = 0.02;
 
 ##======================================================================
 ## Constructors etc.
@@ -31,6 +31,7 @@ our $VERSION = 0.01;
 ##     pack_o => $pack_o,  ##-- file offset pack template (default='N')
 ##     pack_l => $pack_l,  ##-- string-length pack template (default='N')
 ##     bsize  => $bsize,   ##-- block-size in bytes for index batch-operations (default=2**21 = 2MB)
+##     temp   => $bool,    ##-- if true, call unlink() on object destruction (default=false)
 ##     ##
 ##     ##-- pack lengths (after open())
 ##     len_o  => $len_o,   ##-- packsize($pack_o)
@@ -70,8 +71,10 @@ sub defaults {
 }
 
 ## undef = $tied->DESTROY()
+##  + implicitly calls unlink() if 'temp' attribute is set to a true value
 ##  + implicitly calls close()
 sub DESTROY {
+  $_[0]->unlink() if ($_[0]{temp});
   $_[0]->close();
 }
 
@@ -498,6 +501,7 @@ sub unlink {
   my ($tied,$file) = @_;
   $file //= $tied->{file};
   $tied->close();
+  return undef if (!defined($file));
   foreach ('','.idx','.hdr') {
     CORE::unlink("${file}$_") or return undef;
   }
