@@ -11,7 +11,7 @@ do "$TEST_DIR/common.plt"
   or die("could not load $TEST_DIR/common.plt");
 
 ##-- plan tests
-plan(test => 35);
+plan(test => 39);
 
 ##-- common variables
 my $file = "$TEST_DIR/test.dat";
@@ -89,5 +89,11 @@ isok("unlink",  tied(@a)->unlink);
 isok("unlink2: undef", !defined(tied(@a)->unlink));
 isok("unlink: files", !grep {-e "${file}$_"} ('','.idx','.hdr'));
 isok("unlink: untie", untie(@a));
+
+##-- 36+4: temp
+isok("temp: tie: rw", tie(@a, 'Tie::File::Indexed', $file, mode=>'rw', temp=>1) );
+isok("temp: tie: files", !grep {!-e "${file}$_"} ('','.idx','.hdr'));
+isok("temp: untie", untie(@a));
+isok("temp: untie: files", !grep {-e "${file}$_"} ('','.idx','.hdr'));
 
 # end of t/02_basic.t
