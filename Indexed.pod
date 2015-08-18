@@ -392,18 +392,39 @@ subclasses are supported:
 =item L<Tie::File::Indexed::Utf8|Tie::File::Indexed::Utf8>
 
 Stores data records as UTF-8 encoded strings.
+Useful if your data strings are expected to be encoded in UTF8.
 
 =item L<Tie::File::Indexed::JSON|Tie::File::Indexed::JSON>
 
 Stores data records as JSON strings using the L<JSON|JSON> module.
+Useful if you need to store complex data structures and simple scalars
+in the same tied array.
 
 =item L<Tie::File::Indexed::Storable|Tie::File::Indexed::Storable>
 
 Stores data records in native binary format using the L<Storable|Storable> module.
+Useful if you need to store only references (bless()ed or otherwise) to be used on the local machine.
+Individual data records can be used directly with L<Storable::retrieve_fd()|Storable/"retrieve_fd">.
 
 =item L<Tie::File::Indexed::StorableN|Tie::File::Indexed::StorableN>
 
-Stores data records in portable "network" binary format using the L<Storable|Storable> module.
+Stores data records in portable "network" binary format using L<Storable::store_fd()|Storable/"store_fd">.
+Useful if you need to store only references (bless()ed or otherwise) to be shared between machine architectures.
+Individual data records can be used directly with L<Storable::retrieve_fd()|Storable/"retrieve_fd">.
+
+=item L<Tie::File::Indexed::Freeze|Tie::File::Indexed::Freeze>
+
+Stores data records in native binary format using L<Storable::nstore_fd()|Storable/"nstore_fd">.
+Useful if you need to store only references (bless()ed or otherwise) to be used on the local machine.
+Data-files are slightly smaller than those produced by L<Tie::File::Indexed::Storable|Tie::File::Indexed::Storable>,
+but individual data records cannot be used directly with L<Storable::retrieve_fd()|Storable/"retrieve_fd">.
+
+=item L<Tie::File::Indexed::FreezeN|Tie::File::Indexed::FreezeN>
+
+Stores data records in portable "network" binary format using L<Storable::nfreeze()|Storable/"nfreeze">.
+Useful if you need to store only references (bless()ed or otherwise) to be shared between machine architectures.
+Data-files are slightly smaller than those produced by L<Tie::File::Indexed::Storable|Tie::File::Indexed::Storable>,
+but individual data records cannot be used directly with L<Storable::retrieve_fd()|Storable/"retrieve_fd">.
 
 =back
 
@@ -419,13 +440,13 @@ Stores data records in portable "network" binary format using the L<Storable|Sto
 
 No disk-space optimization is performed by default, and
 frequent overwrites will however cause the data-file to grow monotonically:
-every time a logical item is written to the array via the STORE() method,
+every time a logical item is written to the array via the C<STORE()> method,
 a new physical record is appended to the data-file, and the index-record
 for the item is updated to point to the new record.
-This is fine if you only insert elements in logical order (e.g. with push())
+This is fine if you only insert elements in logical order (e.g. using C<push>)
 and never overwrite elements which have already been stored.  Otherwise,
 out-of-order elements may degrade performance for logical-order access
-(e.g. via foreach), since lots of random seek() operations often
+(e.g. via C<foreach>), since lots of random C<seek()> operations often
 don't play nicely together with perl's buffering strategy and or the
 underlying filesystem cache.  Overwriting elements is a bigger problem,
 since overwrites cause the associated data-file to grow ever larger.

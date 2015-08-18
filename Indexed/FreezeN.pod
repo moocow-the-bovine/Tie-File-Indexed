@@ -45,10 +45,8 @@ storing arrays of perl data structures encoded using the Storable module.
 Data items are written in the native byte-order using
 Storable::freeze().
 
-See L<Tie::File::Indexed::Freeze|Tie::File::Indexed::Freeze>
-for a variant using native byte-order,
-and see L<Tie::File::Indexed::StorableN|Tie::File::Indexed::StorableN>
-for a variant using Storable::nstore_fd().
+See L<Tie::File::Indexed/"SUBCLASSES"> for an overview of the built-in
+L<Tie::File::Indexed|Tie::File::Indexed> subclasses.
 
 =cut
 
