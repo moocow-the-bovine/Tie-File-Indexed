@@ -9,7 +9,7 @@ do "$TEST_DIR/common.plt"
   or die("could not load $TEST_DIR/common.plt");
 
 
-@modules = map {"Tie::File::Indexed".$_} ('',qw(::Utf8 ::JSON ::Storable ::StorableN));
+@modules = map {"Tie::File::Indexed".$_} ('',qw(::Utf8 ::JSON ::Storable ::StorableN ::Freeze ::FreezeN));
 plan(test => scalar(@modules));
 
 # 1--N: load submodules (1 subtest/module)

@@ -6,20 +6,22 @@ $TEST_DIR = './t';
 
 use Tie::File::Indexed::Storable;
 use Tie::File::Indexed::StorableN;
+use Tie::File::Indexed::Freeze;
+use Tie::File::Indexed::FreezeN;
 
 ##-- load common subs
 do "$TEST_DIR/common.plt"
   or die("could not load $TEST_DIR/common.plt");
 
 ##-- plan tests
-plan(test => 10);
+plan(test => 20);
 
 ##-- common variables
 my $file = "$TEST_DIR/test.dat";
 my @w = (undef, \undef, \'string', \42, \24.7, {label=>'hash'}, [qw(a b c)], \{label=>'hash-ref'}, \[qw(d e f)]);
 
-##-- 1+(2*5): json data
-foreach my $sub (qw(Storable StorableN)) {
+##-- 1+(4*5): json data
+foreach my $sub (qw(Storable StorableN Freeze FreezeN)) {
   $Storable::canonical = 0;
   my $class = "Tie::File::Indexed::$sub";
   untie(@a) if (tied(@a));
@@ -39,4 +41,4 @@ foreach my $sub (qw(Storable StorableN)) {
   isok("$sub: unlink", tied(@a)->unlink);
 }
 
-# end of t/04_storable.t
+# end of t/05_storable.t

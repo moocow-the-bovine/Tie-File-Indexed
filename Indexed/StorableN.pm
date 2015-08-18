@@ -5,9 +5,8 @@
 ## Description: tied array access to indexed data files: Storable-encoded references (network byte-order)
 
 package Tie::File::Indexed::StorableN;
-use Tie::File::Indexed;
+use Tie::File::Indexed::Storable;
 use Storable;
-use Fcntl qw(:DEFAULT :seek);
 use strict;
 
 ##======================================================================
