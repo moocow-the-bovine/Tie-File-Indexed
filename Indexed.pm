@@ -8,6 +8,7 @@ package Tie::File::Indexed;
 use Tie::Array;
 use JSON qw();
 use Fcntl qw(:DEFAULT :seek :flock);
+use File::Copy qw();
 use IO::File;
 use Carp qw(confess);
 use strict;
@@ -16,7 +17,7 @@ use strict;
 ## Globals
 
 our @ISA     = qw(Tie::Array);
-our $VERSION = 0.02;
+our $VERSION = 0.03;
 
 ##======================================================================
 ## Constructors etc.
@@ -493,6 +494,9 @@ sub flush {
     : undef;
 }
 
+##--------------------------------------------------------------
+## Object API: file operations
+
 ## $tied_or_undef = $tied->unlink()
 ## $tied_or_undef = $tied->unlink($file)
 ##  + attempts to unlink underlying files
@@ -507,6 +511,57 @@ sub unlink {
   }
   return $tied;
 }
+
+## $tied_or_undef = $tied->rename($newname)
+##  + renames underlying file(s) using CORE::rename()
+##  + implicitly close()s and re-open()s $tied
+##  + object must be opened in write-mode
+sub rename {
+  my ($tied,$newfile) = @_;
+  my $flags   = fcflags($tied->{mode});
+  my $oldfile = $tied->{file};
+  return undef if (!$tied->opened() || !fcwrite($flags) || !$tied->close);
+  foreach ('','.idx','.hdr') {
+    CORE::rename("${oldfile}$_","${newfile}$_") or return undef;
+  }
+  return $tied->open($newfile, ($flags & ~O_TRUNC));
+}
+
+## $dst_object_or_undef = $tied_src->copy($dst_filename, %dst_opts)
+## $dst_object_or_undef = $tied_src->copy($dst_object)
+##  + copies underlying file(s) using File::Copy::copy()
+##  + source object must be opened
+##  + implicitly calls flush() on both source and destination objects
+##  + if a destination object is specified, it must be opened in write-mode
+sub copy {
+  my ($src,$dst,%opts) = @_;
+  return undef if (!$src->opened || !$src->flush);
+  $dst = $src->new($dst, %opts, mode=>'rw') if (!ref($dst));
+  return undef if (!$dst->opened && !$dst->open($opts{file}, 'rw'));
+
+  foreach (qw(idxfh datfh)) {
+    CORE::seek($src->{$_}, 0, SEEK_SET) or return undef;
+    CORE::seek($dst->{$_}, 0, SEEK_SET) or return undef;
+    File::Copy::copy($src->{$_}, $dst->{$_}) or return undef;
+  }
+  return $dst->flush();
+}
+
+## $tied_or_undef = $tied->move($newname)
+##  + renames underlying file(s) using File::Copy::move()
+##  + implicitly close()s and re-open()s $tied
+##  + object must be opened in write-mode
+sub move {
+  my ($tied,$newfile) = @_;
+  my $flags   = fcflags($tied->{mode});
+  my $oldfile = $tied->{file};
+  return undef if (!$tied->opened() || !fcwrite($flags) || !$tied->close);
+  foreach ('','.idx','.hdr') {
+    File::Copy::move("${oldfile}$_","${newfile}$_") or return undef;
+  }
+  return $tied->open($newfile, ($flags & ~O_TRUNC));
+}
+
 
 
 ##--------------------------------------------------------------

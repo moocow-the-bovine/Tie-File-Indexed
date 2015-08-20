@@ -21,6 +21,7 @@ WriteMakefile
 		    'Tie::Array' => undef,
 		    'JSON' => undef,
 		    'Storable' => undef,
+		    'File::Copy' => undef,
 		   },
   );
 

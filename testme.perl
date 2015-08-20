@@ -53,6 +53,30 @@ sub test_basic {
   @a = @want;
   isok("a[$_] eq $want[$_]", $a[$_] eq $want[$_]) foreach (0..$#want);
 
+  ##-- test: copy: file
+  my $bfile = "${file}2";
+  my (@b);
+  isok("copy:file", tied(@a)->copy($bfile));
+  isok("copy:file:tie", tie(@b, ref(tied(@a)), "$bfile", mode=>'rwa', temp=>1));
+  isok("copy:file:data:$_", $a[$_] eq $b[$_]) foreach (0..$#a);
+
+  ##-- test: copy: object
+  untie(@b) if (tied(@b));
+  my $b = Tie::File::Indexed->new("$bfile", mode=>'rw',temp=>1);
+  isok("copy:obj", tied(@a)->copy($b));
+  isok("copy:obj:data:$_", $a[$_] eq $b->FETCH($_)) foreach (0..$#a);
+  undef $b;
+
+  ##-- test: rename (a->b)
+  isok("rename", tied(@a)->rename($bfile));
+  isok("rename:files:old:$_", (!-e "${file}$_"))  foreach ('','.idx','.hdr');
+  isok("rename:files:new:$_", ( -e "${bfile}$_")) foreach ('','.idx','.hdr');
+
+  ##-- test: move (b->a)
+  isok("move", tied(@a)->move($file));
+  isok("move:files:old:$_", (!-e "${bfile}$_")) foreach ('','.idx','.hdr');
+  isok("move:files:new:$_", ( -e "${file}$_"))  foreach ('','.idx','.hdr');
+
   ##-- test: append
   print STDERR "test: append\n";
   untie(@a);
