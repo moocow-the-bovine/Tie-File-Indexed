@@ -2,6 +2,10 @@
 #
 # Revision history for Perl module Tie::File::Indexed
 
+v0.04 Thu, 27 Aug 2015 10:06:36 +0200 moocow
+	+ fix annoying warnings during make test under perl 5.14.2 (lal)
+	  "untie attempted while 1 inner references still exist at t/02_basic.t line 109."
+
 v0.03 Thu, 20 Aug 2015 11:01:24 +0200 moocow
 	+ added copy(), rename(), and move() methods
 

@@ -24,7 +24,6 @@ my @w = (undef, \undef, \'string', \42, \24.7, {label=>'hash'}, [qw(a b c)], \{l
 foreach my $sub (qw(Storable StorableN Freeze FreezeN)) {
   $Storable::canonical = 0;
   my $class = "Tie::File::Indexed::$sub";
-  untie(@a) if (tied(@a));
   isok("$sub: tie", tie(@a, $class, $file, mode=>'rw'));
   @a = @w;
   isok("$sub: size", @a==@w);
@@ -39,6 +38,7 @@ foreach my $sub (qw(Storable StorableN Freeze FreezeN)) {
   isok("$sub: gap ~ undef", !defined($a[$gap]));
 
   isok("$sub: unlink", tied(@a)->unlink);
+  untie(@a);
 }
 
 # end of t/05_storable.t

@@ -106,7 +106,7 @@ isok("copy: file: tie", tie(@b, ref(tied(@a)), $bfile, mode=>'rwa', temp=>1));
 listok("copy: file: content", \@a,\@b);
 
 ##-- 43+2: copy: object
-untie(@b) if (tied(@b));
+untie(@b);  # if (tied(@b)); ##--> untie attempted while 1 inner references still exist at t/02_basic.t line 109.
 my $bobj = Tie::File::Indexed->new($bfile, mode=>'rw',temp=>1);
 isok("copy: obj", tied(@a)->copy($bobj));
 listok("copy: obj: content", \@a,[map {$bobj->FETCH($_)} (0..($bobj->FETCHSIZE-1))]);
