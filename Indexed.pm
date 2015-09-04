@@ -17,7 +17,7 @@ use strict;
 ## Globals
 
 our @ISA     = qw(Tie::Array);
-our $VERSION = 0.05;
+our $VERSION = 0.04;
 
 ##======================================================================
 ## Constructors etc.
