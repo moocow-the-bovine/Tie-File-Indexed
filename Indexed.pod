@@ -110,16 +110,17 @@ the Perl array @array.  Currently accepted %options:
  file   => $file,    ##-- file basename; uses files "${file}", "${file}.idx", "${file}.hdr"
  mode   => $mode,    ##-- open mode (fcntl flags or perl-style; default='rwa')
  perms  => $perms,   ##-- default: 0666 & ~umask
- pack_o => $pack_o,  ##-- file offset pack template (default='N')
- pack_l => $pack_l,  ##-- string-length pack template (default='N')
+ pack_o => $pack_o,  ##-- file offset pack template (default='J')
+ pack_l => $pack_l,  ##-- string-length pack template (default='J')
  bsize  => $bsize,   ##-- buffer size in bytes for index batch-operations (default=2**21 = 2MB)
 
 When opening an existing file, administrative header-data is read from the header-file F<$file.hdr>,
 which is written on close() if opened in write-mode.
 Raw data records are read/written from/to the data-file F<$file>,
 and their offsets and lengths are stored as packed integers in the index-file F<$file.idx>.
-The options C<pack_o> and C<pack_l> control the pack-templates to use for the index-file.
-See the entry for "pack" in L<perlfunc> for details.
+The options C<pack_o> and C<pack_l> control the pack-templates to use for the index-file;
+the default pack templates use the 'J' pack format to pack offsets and lengths as Perl internal unsigned
+integer values. See the entry for "pack" in L<perlfunc> for details.
 
 =item defaults
 

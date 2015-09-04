@@ -17,7 +17,7 @@ use strict;
 ## Globals
 
 our @ISA     = qw(Tie::Array);
-our $VERSION = 0.04;
+our $VERSION = 0.05;
 
 ##======================================================================
 ## Constructors etc.
@@ -29,8 +29,8 @@ our $VERSION = 0.04;
 ##     file   => $file,    ##-- file basename; uses files "${file}", "${file}.idx", "${file}.hdr"
 ##     mode   => $mode,    ##-- open mode (fcntl flags or perl-style; default='rwa')
 ##     perms  => $perms,   ##-- default: 0666 & ~umask
-##     pack_o => $pack_o,  ##-- file offset pack template (default='N')
-##     pack_l => $pack_l,  ##-- string-length pack template (default='N')
+##     pack_o => $pack_o,  ##-- file offset pack template (default='J')
+##     pack_l => $pack_l,  ##-- string-length pack template (default='J')
 ##     bsize  => $bsize,   ##-- block-size in bytes for index batch-operations (default=2**21 = 2MB)
 ##     temp   => $bool,    ##-- if true, call unlink() on object destruction (default=false)
 ##     ##
@@ -65,8 +65,8 @@ sub defaults {
 	  #file  => $file,
 	  perms  => (0666 & ~umask),
 	  mode   => 'rwa',
-	  pack_o => 'N',
-	  pack_l => 'N',
+	  pack_o => 'J',
+	  pack_l => 'J',
 	  block  => 2**21,
 	 );
 }
