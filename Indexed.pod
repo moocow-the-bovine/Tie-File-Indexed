@@ -286,6 +286,8 @@ Returns true iff object is opened.
 Attempts to flush underlying filehandles using their C<flush()> method, if available.
 If C<$flushHeader> is specified and true, also writes header file.
 
+=back
+
 =cut
 
 ##----------------------------------------------------------------
