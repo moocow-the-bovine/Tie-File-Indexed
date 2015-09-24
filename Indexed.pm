@@ -5,6 +5,7 @@
 ## Description: tied array access to indexed data files
 
 package Tie::File::Indexed;
+use 5.10.0; ##-- for // operator
 use Tie::Array;
 use JSON qw();
 use Fcntl qw(:DEFAULT :seek :flock);
@@ -17,7 +18,7 @@ use strict;
 ## Globals
 
 our @ISA     = qw(Tie::Array);
-our $VERSION = 0.04;
+our $VERSION = 0.05;
 
 ##======================================================================
 ## Constructors etc.
@@ -607,7 +608,8 @@ sub consolidate {
   delete $tied->{datfh};
   CORE::unlink($tied->{file})
       or confess(ref($tied)."::consolidate(): failed to unlink old data-file '$tied->{file}': $!");
-  CORE::rename($tmpfile, $tied->{file})
+  #CORE::rename($tmpfile, $tied->{file}) ##-- win32 chokes here with "Permission denied"
+  File::Copy::move($tmpfile, $tied->{file})
       or confess(ref($tied)."::consolidate(): failed to rename temp-file '$tmpfile' to '$tied->{file}': $!");
   $tied->{datfh} = $tmpfh;
 

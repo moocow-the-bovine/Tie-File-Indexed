@@ -396,8 +396,8 @@ It can be useful to reduce the size of the associated data-file and/or optimize 
 (over)writing any existing array item causes a new record to be appended to the data-file.
 Consider the following code:
 
- tie(my @data, 'Tie::File::Indexed', "data") or die ...  ##-- tie the array
- $data[1] = 'bar';                                       ##-- data-file is now "foobar"
+ tie(my @data, 'Tie::File::Indexed', "data") or die ...  ##-- tie the array; data-file is empty
+ $data[1] = 'bar';                                       ##-- data-file is now "bar"
  $data[0] = 'foo';                                       ##-- data-file is now "barfoo"
  $data[1] = 'baz';                                       ##-- data-file is now "barfoobaz"
 

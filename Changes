@@ -2,6 +2,10 @@
 #
 # Revision history for Perl module Tie::File::Indexed
 
+v0.05 Thu, 24 Sep 2015 15:19:48 +0200 moocow
+	+ added MIN_PERL_VERSION=>5.10.0 for // operator
+	+ use File::Copy::move() in consolidate() method (for cpantesters win32 failures)
+
 v0.04 Fri, 04 Sep 2015 10:22:22 +0200 moocow
 	+ changed default pack formats to 'J' (perl UV: should be safe but not portable)
 	+ fix annoying warnings during make test under perl 5.14.2 (lal)

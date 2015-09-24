@@ -15,7 +15,7 @@ WriteMakefile
    #EXE_FILES => [glob("*.perl")],
 
    ##-- prerequisites
-   #MIN_PERL_VERSION => '5.8.0', ##-- perl 5.6 chokes with "Can't declare another package's variables at t/01_ini.t line 22."
+   MIN_PERL_VERSION => '5.10.0', ##-- perl <=5.10 chokes on // operator
    PREREQ_PM    => {
 		    #'Module' => $version,
 		    'Tie::Array' => undef,
