@@ -18,7 +18,7 @@ use strict;
 ## Globals
 
 our @ISA     = qw(Tie::Array);
-our $VERSION = 0.05;
+our $VERSION = 0.05_001;
 
 ##======================================================================
 ## Constructors etc.
@@ -583,7 +583,7 @@ sub consolidate {
   binmode($tmpfh);
 
   ##-- copy data
-  my ($idxfh,$datfh,$len_ix,$pack_ix) = @$tied{qw(idxfh datfh len_ix pack_ix)};
+  my ($file,$idxfh,$datfh,$len_ix,$pack_ix) = @$tied{qw(file idxfh datfh len_ix pack_ix)};
   my ($buf,$off,$len);
   my $size = $tied->size;
   CORE::seek($idxfh, 0, SEEK_SET) or return undef;
@@ -603,15 +603,25 @@ sub consolidate {
     $tmpfh->print($buf) or return undef;
   }
 
-  ##-- swap data filehandle
-  undef  $datfh;
+  ##-- close data-filehandles
+  CORE::close($tmpfh)
+      or confess(ref($tied)."::consolidate(): failed to close temp-file '$tmpfile': $!");
+  CORE::close($datfh)
+    or confess(ref($tied)."::consolidate(): failed to close old data-file '$file': $!");
+
+  ##-- replace old datafile
+  undef $tmpfh;
+  undef $datfh;
   delete $tied->{datfh};
-  CORE::unlink($tied->{file})
+  CORE::unlink($file)
       or confess(ref($tied)."::consolidate(): failed to unlink old data-file '$tied->{file}': $!");
-  #CORE::rename($tmpfile, $tied->{file}) ##-- win32 chokes here with "Permission denied"
-  File::Copy::move($tmpfile, $tied->{file})
-      or confess(ref($tied)."::consolidate(): failed to rename temp-file '$tmpfile' to '$tied->{file}': $!");
-  $tied->{datfh} = $tmpfh;
+  #CORE::rename($tmpfile, $file) ##-- win32 chokes here with "Permission denied"
+  File::Copy::move($tmpfile, $file)
+      or confess(ref($tied)."::consolidate(): failed to move temp-file '$tmpfile' to '$file': $!");
+
+  ##-- re-open
+  $tied->{datfh} = fcopen("$file", (fcflags($tied->{mode}) & ~O_TRUNC), $tied->{perms})
+    or confess(ref($tied)."::consolidate(): failed to re-open data-file $file: $!");
 
   return $tied;
 }

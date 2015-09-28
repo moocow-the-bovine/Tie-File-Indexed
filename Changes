@@ -2,6 +2,9 @@
 #
 # Revision history for Perl module Tie::File::Indexed
 
+v0.05_001 Mon, 28 Sep 2015 16:07:00 +0200 moocow
+	+ consolidate() now closes and re-opens datafile (attempt to fix win32 choking on cpantesters)
+
 v0.05 Thu, 24 Sep 2015 15:19:48 +0200 moocow
 	+ added MIN_PERL_VERSION=>5.10.0 for // operator
 	+ use File::Copy::move() in consolidate() method (for cpantesters win32 failures)
