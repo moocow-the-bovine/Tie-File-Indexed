@@ -237,14 +237,14 @@ Data to save as header.
  $tied_or_undef = $tied->loadHeader();
  $tied_or_undef = $tied->loadHeader($headerFile,%opts);
 
-Loads header from C<$headerFile>, by default C<"$tied->{file}.hdr">.
+Loads header from C<$headerFile>, by default C<"$tied-E<gt>{file}.hdr">.
 
 =item saveHeader
 
  $tied_or_undef = $tied->saveHeader();
  $tied_or_undef = $tied->saveHeader($headerFile);
 
-Saves header data to C<$headerFile>, by default C<"$tied->{file}.hdr">.
+Saves header data to C<$headerFile>, by default C<"$tied-E<gt>{file}.hdr">.
 
 =back
 
@@ -456,19 +456,19 @@ in the same tied array.
 
 =item L<Tie::File::Indexed::Storable|Tie::File::Indexed::Storable>
 
-Stores data records in native binary format using the L<Storable|Storable> module.
+Stores data records in native binary format using L<Storable::nstore_fd()|Storable/"store_fd">.
 Useful if you need to store only references (bless()ed or otherwise) to be used on the local machine.
 Individual data records can be used directly with L<Storable::retrieve_fd()|Storable/"retrieve_fd">.
 
 =item L<Tie::File::Indexed::StorableN|Tie::File::Indexed::StorableN>
 
-Stores data records in portable "network" binary format using L<Storable::store_fd()|Storable/"store_fd">.
+Stores data records in portable "network" binary format using L<Storable::nstore_fd()|Storable/"nstore_fd">.
 Useful if you need to store only references (bless()ed or otherwise) to be shared between machine architectures.
 Individual data records can be used directly with L<Storable::retrieve_fd()|Storable/"retrieve_fd">.
 
 =item L<Tie::File::Indexed::Freeze|Tie::File::Indexed::Freeze>
 
-Stores data records in native binary format using L<Storable::nstore_fd()|Storable/"nstore_fd">.
+Stores data records in native binary format using L<Storable::freeze()|Storable/"freeze">.
 Useful if you need to store only references (bless()ed or otherwise) to be used on the local machine.
 Data-files are slightly smaller than those produced by L<Tie::File::Indexed::Storable|Tie::File::Indexed::Storable>,
 but individual data records cannot be used directly with L<Storable::retrieve_fd()|Storable/"retrieve_fd">.
