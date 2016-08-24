@@ -2,7 +2,7 @@
 #
 # Revision history for Perl module Tie::File::Indexed
 
-v0.07 PENDING
+v0.07 Wed, 24 Aug 2016 10:55:16 +0200 moocow
 	+ added reopen() method (should be a force-flush())
 	+ flush() now calls reopen() if underlying handles don't have a flush() method
 	+ fixed off-by-one error in SPLICE method return values

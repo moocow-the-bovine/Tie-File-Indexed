@@ -17,7 +17,6 @@ Indexed/Freeze.pm
 Indexed/Freeze.pod
 Indexed/FreezeN.pm
 Indexed/FreezeN.pod
-t/common.plt
 t/01_ini.t
 t/02_basic.t
 t/03_utf8.t
