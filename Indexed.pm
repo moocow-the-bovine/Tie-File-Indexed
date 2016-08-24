@@ -104,6 +104,14 @@ sub fcflags {
   return $flags;
 }
 
+## $fcflags = fcgetfl($fh)
+##  + returns Fcntl flags for filehandle $fh
+sub fcgetfl {
+  shift if (UNIVERSAL::isa($_[0],__PACKAGE__));
+  my $fh = shift;
+  return CORE::fcntl($fh,F_GETFL,0);
+}
+
 ## $bool = CLASS_OR_OBJECT->fcread($mode)
 ##  + returns true if any read-bits are set for $mode
 sub fcread {
