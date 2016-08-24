@@ -2,6 +2,12 @@
 #
 # Revision history for Perl module Tie::File::Indexed
 
+v0.07 PENDING
+	+ added reopen() method (should be a force-flush())
+	+ flush() now calls reopen() if underlying handles don't have a flush() method
+	+ fixed off-by-one error in SPLICE method return values
+	+ ported tests to Test::More
+
 v0.06 Tue, 29 Sep 2015 09:21:11 +0200 moocow
 	+ consolidate() now closes and re-opens datafile
 	  - fixes win32 test failures with 'Permission denied' on cpantesters

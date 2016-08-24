@@ -18,10 +18,11 @@ WriteMakefile
    MIN_PERL_VERSION => '5.10.0', ##-- perl <=5.10 chokes on // operator
    PREREQ_PM    => {
 		    #'Module' => $version,
-		    'Tie::Array' => undef,
-		    'JSON' => undef,
-		    'Storable' => undef,
-		    'File::Copy' => undef,
+		    'Tie::Array' => 0,
+		    'JSON' => 0,
+		    'Storable' => 0,
+		    'File::Copy' => 0,
+		    'Test::More' => 0,
 		   },
   );
 

@@ -58,6 +58,7 @@ Tie::File::Indexed - fast tied array access to indexed data files
  ##-- buffering and consolidation
  my $tied = tied(@data);  # get underlying object
  $tied->flush();          # flush underlying filehandles
+ $tied->reopen();         # close and re-open underlying filehandles
  $tied->consolidate();    # remove gaps and stale values
  
  ##-- all done
@@ -278,12 +279,20 @@ Close any opened files, writes header if opened in write mode.
 
 Returns true iff object is opened.
 
+=item reopen
+
+ $bool = $tied->reopen();
+
+Closes and re-opens underlying filehandles.
+Should cause a "real" flush even on systems without a working L<IO::Handle::flush()|IO::Handle/"$io-E<gt>flush"> method.
+
 =item flush
 
  $tied_or_undef = $tied->flush();
  $tied_or_undef = $tied->flush($flushHeader);
 
-Attempts to flush underlying filehandles using their C<flush()> method, if available.
+Attempts to flush underlying filehandles using their C<flush()> method if available,
+otherwise calls L<reopen()/reopen>.
 If C<$flushHeader> is specified and true, also writes header file.
 
 =back

@@ -18,7 +18,7 @@ use strict;
 ## Globals
 
 our @ISA     = qw(Tie::Array);
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 
 ##======================================================================
 ## Constructors etc.
@@ -471,6 +471,15 @@ sub close {
   return $tied;
 }
 
+## $bool = $tied->reopen()
+##  + closes and re-opens underlying filehandles
+##  + should cause a "real" flush even on systems without a working IO::Handle::flush
+sub reopen {
+  my $tied = shift;
+  my ($file,$mode) = @$tied{qw(file mode)};
+  return $tied->opened() && $tied->close() && $tied->open($file,$mode);
+}
+
 ## $bool = $tied->opened()
 ##  + returns true iff object is opened
 sub opened {
@@ -483,16 +492,22 @@ sub opened {
 
 ## $tied_or_undef = $tied->flush()
 ## $tied_or_undef = $tied->flush($flushHeader)
-##  + attempts to flush underlying filehandles using IO::Handle::flush
+##  + attempts to flush underlying filehandles using underlying filehandles' flush() method
+##    (ususally IO::Handle::flush)
 ##  + also writes header file
+##  + calls reopen() if underlying filehandles don't support a flush() method
 sub flush {
-  return ($_[0]->opened
-	  && UNIVERSAL::can($_[0]->{idxfh},'flush') && $_[0]->{idxfh}->flush
-	  && UNIVERSAL::can($_[0]->{datfh},'flush') && $_[0]->{datfh}->flush
-	  && (!$_[1] || $_[0]->saveHeaderFile())
-	 )
-    ? $_[0]
-    : undef;
+  my ($tied,$flushHeader) = @_;
+  my $rc = $tied->opened;
+  if ($rc && UNIVERSAL::can($tied->{idxfh},'flush') && UNIVERSAL::can($tied,'flush')) {
+    ##-- use fh flush() method
+    $rc = $tied->{idxfh}->flush() && $tied->{datfh}->flush() && (!$flushHeader || $tied->saveHeaderFile());
+  }
+  else {
+    ##-- use reopen()
+    $rc = $tied->reopen();
+  }
+  return $rc ? $tied : undef;
 }
 
 ##--------------------------------------------------------------
@@ -801,14 +816,14 @@ sub SPLICE {
   ##-- get result-list
   my ($i,@result);
   if (wantarray) {
-    for ($i=$off; $i < $len; ++$i) {
+    for ($i=$off; $i <= $len; ++$i) {
       push(@result, $tied->FETCH($i));
     }
   } elsif ($len > 0) {
     @result = ($tied->FETCH($off+$len-1));
   }
 
-  ##-- shift post-splice index records (expensive, but generally not as default Tie::Array iterated FETCH()+STORE())
+  ##-- shift post-splice index records (expensive, but generally not so bad as default Tie::Array iterated FETCH()+STORE())
   my $shift = scalar(@_) - $len;
   $tied->shiftIndex($off+$len, $size-($off+$len), $shift) if ($shift != 0);
 
