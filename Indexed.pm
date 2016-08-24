@@ -18,7 +18,7 @@ use strict;
 ## Globals
 
 our @ISA     = qw(Tie::Array);
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 
 ##======================================================================
 ## Constructors etc.
@@ -477,7 +477,7 @@ sub close {
 sub reopen {
   my $tied = shift;
   my ($file,$mode) = @$tied{qw(file mode)};
-  return $tied->opened() && $tied->close() && $tied->open($file,$mode);
+  return $tied->opened() && $tied->close() && $tied->open($file, $mode & ~O_TRUNC);
 }
 
 ## $bool = $tied->opened()
@@ -499,7 +499,7 @@ sub opened {
 sub flush {
   my ($tied,$flushHeader) = @_;
   my $rc = $tied->opened;
-  if ($rc && UNIVERSAL::can($tied->{idxfh},'flush') && UNIVERSAL::can($tied,'flush')) {
+  if (0 && $rc && UNIVERSAL::can($tied->{idxfh},'flush') && UNIVERSAL::can($tied->{datfh},'flush')) {
     ##-- use fh flush() method
     $rc = $tied->{idxfh}->flush() && $tied->{datfh}->flush() && (!$flushHeader || $tied->saveHeaderFile());
   }

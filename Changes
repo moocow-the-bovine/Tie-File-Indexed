@@ -2,6 +2,9 @@
 #
 # Revision history for Perl module Tie::File::Indexed
 
+v0.08 Wed, 24 Aug 2016 16:04:51 +0200 moocow
+	+ force clear O_TRUNC on reopen()
+
 v0.07 Wed, 24 Aug 2016 10:55:16 +0200 moocow
 	+ added reopen() method (should be a force-flush())
 	+ flush() now calls reopen() if underlying handles don't have a flush() method
