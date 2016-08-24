@@ -13,3 +13,5 @@ README\.rpod
 ^File$
 \.dat*
 ^footer\.rpod$
+^svntag\.rc$
+^MYMETA\.
