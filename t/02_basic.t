@@ -8,7 +8,7 @@ use Tie::File::Indexed;
 
 ##-- common variables
 my $TEST_DIR = ".";
-my $file = "$TEST_DIR/test.dat";
+my $file = "$TEST_DIR/test_basic.dat";
 my $n    = 4; ##-- number of elements
 my (@a,@w,$w);
 

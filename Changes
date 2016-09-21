@@ -2,6 +2,14 @@
 #
 # Revision history for Perl module Tie::File::Indexed
 
+v0.09 Wed, 21 Sep 2016 09:12:16 +0200 moocow
+	+ use unique filenames in test/*.t
+	  - be nice to cpantesters running with "HARNESS_OPTIONS=j$N" $N>1 (multiple parallel jobs
+	  - should address weird cpantesters inconsistency e.g. for 5.10.0 GNU/Linux 3.16-3-amd64 x86_64-linux-thread-multi:
+	    ~ PASS: http://www.cpantesters.org/cpan/report/bf64695e-7f39-11e6-b850-10220ec14a5e
+	    ~ FAIL: http://www.cpantesters.org/cpan/report/569b1ec2-7f39-11e6-b850-10220ec14a5e
+	    here, FAIL run chokes on 03_utf8.t reporting an element value we set in 02_basic.t
+
 v0.08 Wed, 24 Aug 2016 16:04:51 +0200 moocow
 	+ force clear O_TRUNC on reopen()
 
