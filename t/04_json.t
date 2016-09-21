@@ -6,7 +6,7 @@ use Tie::File::Indexed::JSON;
 my $TEST_DIR = ".";
 
 ##-- common variables
-my $file = "$TEST_DIR/test.dat";
+my $file = "$TEST_DIR/test_json.dat";
 my @w = (undef, 'string', 42, 24.7, {label=>'hash'}, [qw(a b c)]);
 
 ##-- 1+3: json data
